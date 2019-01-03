@@ -19,14 +19,12 @@ def get_resource_id_from_key(key):
 
     pair_strings = []
 
-    pairs = key.pairs()
+    pairs = key.path # key.pairs()
 
     import logging
-    logging.error(key)
-    logging.error(key.__dict__)
+    logging.error(key.path)
+    logging.error(key.flat_path)
 
-    client = datastore.Client()
-    
 
     for pair in pairs:
         kind = unicode(pair[0])
