@@ -1,5 +1,6 @@
 # Datastore utilities
 
+from google.cloud import datastore
 import base64
 
 SEPARATOR = chr(30)
@@ -19,6 +20,13 @@ def get_resource_id_from_key(key):
     pair_strings = []
 
     pairs = key.pairs()
+
+    import logging
+    logging.error(key)
+    logging.error(key.__dict__)
+
+    client = datastore.Client()
+    
 
     for pair in pairs:
         kind = unicode(pair[0])
@@ -57,7 +65,8 @@ def get_key_from_resource_id(resource_id):
             bit = int(bit[1:])
         key_pairs.append(bit)
 
-    return ndb.Key(*key_pairs)
+    client = datastore.Client()
+    return client.key(*key_pairs)
 
 
 def get_entity_key_by_keystr(expected_kind, keystr):
