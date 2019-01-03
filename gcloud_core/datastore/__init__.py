@@ -1,7 +1,6 @@
 # Datastore utilities
 
 import base64
-from google.appengine.ext import ndb
 
 SEPARATOR = chr(30)
 INTPREFIX = chr(31)
