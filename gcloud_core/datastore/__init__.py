@@ -1,7 +1,7 @@
 # Datastore utilities
-
-from google.cloud import datastore
 import base64
+from google.cloud import datastore
+import logging
 
 SEPARATOR = chr(30)
 INTPREFIX = chr(31)
@@ -9,32 +9,39 @@ INTPREFIX = chr(31)
 _keystr_type_err = 'Keystrings must of type basestring. Received: %s'
 _id_type_err = 'Resource Ids must be an instance of basestring. Received: %s'
 _kind_err = 'Expected keystr for kind %s but found kind %s instead.'
+_invalid_id_err = "'%s' is not a valid resource id.'"
+_pair_err = 'Key must have an even number of positional pairs. Received: %s'
 
 
 def get_resource_id_from_key(key):
     """
     Convert a ndb.Key() into a portable `str` resource id
-    :param key: An instance of `ndb.Key`
+    :param key: An instance of `google.cloud.Key`
     """
-
+    # https://googleapis.github.io/google-cloud-python/latest/_modules/google/cloud/datastore/key.html
     pair_strings = []
+    path = key.flat_path
+    if len(path) & 1:  # slightly faster odd check than %
+        raise InvalidKeyException(_pair_err % key)
 
-    pairs = key.path # key.pairs()
-
-    import logging
-    logging.error(key.path)
-    logging.error(key.flat_path)
-
+    # Split into pairs
+    a = iter(key.flat_path)
+    pairs = zip(a, a)
 
     for pair in pairs:
+        logging.error(pair)
         kind = unicode(pair[0])
         key_or_id = pair[1]
+
+        if not (kind and key_or_id):
+            raise InvalidKeyException('Key must have an even number of positional pairs. Received %s' % pair)
 
         if isinstance(key_or_id, (int, long)):
             key_or_id = unicode(INTPREFIX + unicode(key_or_id))
 
         pair_strings.append(kind + SEPARATOR + key_or_id)
 
+    # Rejoin pairs
     buff = SEPARATOR.join(pair_strings)
     encoded = base64.urlsafe_b64encode(buff)
     encoded = encoded.replace('=', '')
@@ -53,7 +60,10 @@ def get_key_from_resource_id(resource_id):
         resource_id += ('=' * (4 - modulo))
 
     # decode the url safe resource id
-    decoded = base64.urlsafe_b64decode(str(resource_id))
+    try:
+        decoded = base64.urlsafe_b64decode(str(resource_id))
+    except TypeError:
+        raise InvalidIdException('Could not base64 decode resource_id')
 
     key_pairs = []
     bits = decoded.split(SEPARATOR)
@@ -63,13 +73,13 @@ def get_key_from_resource_id(resource_id):
             bit = int(bit[1:])
         key_pairs.append(bit)
 
-    client = datastore.Client()
+    client = datastore.Client()  # TODO: Get instance from global environment ?
     return client.key(*key_pairs)
 
 
 def get_entity_key_by_keystr(expected_kind, keystr):
     """
-    Helper to get a key for an ndb entity by its urlsafe keystr
+    Deprecated legacy helper to get a key for an ndb entity by its urlsafe keystr
     Args:
         expected_kind: The expected kind of ndb.Key as case-sensative string
         keystr: ndb.Key string representation
@@ -84,11 +94,11 @@ def get_entity_key_by_keystr(expected_kind, keystr):
         raise ValueError(_keystr_type_err % keystr)
 
     # Resolve the ndb key
-    ndb_key = ndb.Key(urlsafe=keystr)
+    ndb_key = datastore.Key.from_legacy_urlsafe(keystr)
 
     # Validate the kind
-    if not ndb_key.kind() == expected_kind:
-        raise ValueError(_kind_err % (expected_kind, ndb_key.kind()))
+    if not ndb_key.kind == expected_kind:
+        raise ValueError(_kind_err % (expected_kind, ndb_key.kind))
 
     return ndb_key
 
@@ -97,8 +107,8 @@ def get_entity_by_resource_id(expected_kind, resource_id):
     """
     Get an entity by its resource_id
     Args:
-        expected_kind: The expected kind of ndb.Key as case-sensative string
-        resource_id: Portable string id that resolves to an ndb.Key
+        expected_kind: The expected kind of `Key` as case-sensative string
+        resource_id: Portable string id that resolves to an `Key`
     Returns:
         An instance of Entity corresponding to resource_id
     Raises:
@@ -111,21 +121,27 @@ def get_entity_by_resource_id(expected_kind, resource_id):
         raise ValueError(_id_type_err % resource_id)
 
     try:
-        # Resolve the ndb key - Note: This will throw if invalid
-        ndb_key = get_key_from_resource_id(resource_id)
+        # Resolve the datastore key - Note: This will throw if invalid
+        key = get_key_from_resource_id(resource_id)
 
         # Validate the kind
-        if not ndb_key.kind() == expected_kind:
-            raise ValueError(_kind_err % (expected_kind, ndb_key.kind()))
+        if not key.kind == expected_kind:
+            raise ValueError(_kind_err % (expected_kind, key.kind))
 
-        return ndb_key.get()  # Could return None
+        client = datastore.Client()  # TODO: Get instance from global environment ?
+        return client.get(key)  # Could return None
     except (ValueError, AttributeError, IndexError, TypeError):
-        raise InvalidIdException("'%s' is not a valid resource id." %
-                                 resource_id)
+        raise InvalidIdException(_invalid_id_err % resource_id)
+
+    return None
 
 
 class EntityExists(RuntimeError):
     """Exception to throw for duplicate"""
+    pass
+
+
+class InvalidKeyException(ValueError):
     pass
 
 

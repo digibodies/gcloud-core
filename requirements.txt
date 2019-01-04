@@ -1,0 +1,2 @@
+# Requirements to build and test
+google-cloud-datastore==1.7.1
