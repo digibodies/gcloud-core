@@ -6,8 +6,8 @@ import logging
 SEPARATOR = chr(30)
 INTPREFIX = chr(31)
 # Error Templates
-_keystr_type_err = 'Keystrings must of type basestring. Received: %s'
-_id_type_err = 'Resource Ids must be an instance of basestring. Received: %s'
+_keystr_type_err = 'Keystrings must of type str. Received: %s'
+_id_type_err = 'Resource Ids must be an instance of str. Received: %s'
 _kind_err = 'Expected keystr for kind %s but found kind %s instead.'
 _invalid_id_err = "'%s' is not a valid resource id.'"
 _pair_err = 'Key must have an even number of positional pairs. Received: %s'
@@ -90,7 +90,7 @@ def get_entity_key_by_keystr(expected_kind, keystr):
         ValueError: The expected_kind does not match the kind of keystr
     """
 
-    if not keystr or not isinstance(keystr, basestring):
+    if not keystr or not isinstance(keystr, str):
         raise ValueError(_keystr_type_err % keystr)
 
     # Resolve the ndb key
@@ -117,7 +117,7 @@ def get_entity_by_resource_id(expected_kind, resource_id):
         InvalidIdException: resource_id could not be converted to ndb.Key
     """
 
-    if not resource_id or not isinstance(resource_id, basestring):
+    if not resource_id or not isinstance(resource_id, str):
         raise ValueError(_id_type_err % resource_id)
 
     try:
