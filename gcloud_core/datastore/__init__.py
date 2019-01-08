@@ -1,7 +1,7 @@
 # Datastore utilities
+import binascii
 import base64
 from google.cloud import datastore
-import logging
 
 SEPARATOR = chr(30)
 INTPREFIX = chr(31)
@@ -11,6 +11,22 @@ _id_type_err = 'Resource Ids must be an instance of str. Received: %s'
 _kind_err = 'Expected keystr for kind %s but found kind %s instead.'
 _invalid_id_err = "'%s' is not a valid resource id.'"
 _pair_err = 'Key must have an even number of positional pairs. Received: %s'
+
+
+class Client:
+    """
+    Singleton Object to ensure we only use one instance per request
+    """
+    ds_client = None
+
+    def __init__(self):
+        if not Client.ds_client:
+            Client.ds_client = datastore.Client()
+
+    def __getattr__(self, name):
+        if name == 'ds_client':
+            return self.ds_client
+        return getattr(self.ds_client, name)
 
 
 def get_resource_id_from_key(key):
@@ -29,23 +45,22 @@ def get_resource_id_from_key(key):
     pairs = zip(a, a)
 
     for pair in pairs:
-        logging.error(pair)
-        kind = unicode(pair[0])
+        kind = str(pair[0])
         key_or_id = pair[1]
 
         if not (kind and key_or_id):
-            raise InvalidKeyException('Key must have an even number of positional pairs. Received %s' % pair)
+            raise InvalidKeyException(_pair_err % pair)
 
-        if isinstance(key_or_id, (int, long)):
-            key_or_id = unicode(INTPREFIX + unicode(key_or_id))
+        if isinstance(key_or_id, int):
+            key_or_id = str(INTPREFIX + str(key_or_id))
 
         pair_strings.append(kind + SEPARATOR + key_or_id)
 
     # Rejoin pairs
-    buff = SEPARATOR.join(pair_strings)
+    buff = SEPARATOR.join(pair_strings).encode('ascii')
     encoded = base64.urlsafe_b64encode(buff)
-    encoded = encoded.replace('=', '')
-    return encoded
+    encoded = encoded.replace(b'=', b'')
+    return encoded.decode()
 
 
 def get_key_from_resource_id(resource_id):
@@ -61,8 +76,8 @@ def get_key_from_resource_id(resource_id):
 
     # decode the url safe resource id
     try:
-        decoded = base64.urlsafe_b64decode(str(resource_id))
-    except TypeError:
+        decoded = base64.urlsafe_b64decode(str(resource_id)).decode()
+    except binascii.Error:
         raise InvalidIdException('Could not base64 decode resource_id')
 
     key_pairs = []
@@ -73,8 +88,7 @@ def get_key_from_resource_id(resource_id):
             bit = int(bit[1:])
         key_pairs.append(bit)
 
-    client = datastore.Client()  # TODO: Get instance from global environment ?
-    return client.key(*key_pairs)
+    return Client().key(*key_pairs)
 
 
 def get_entity_key_by_keystr(expected_kind, keystr):
@@ -128,8 +142,7 @@ def get_entity_by_resource_id(expected_kind, resource_id):
         if not key.kind == expected_kind:
             raise ValueError(_kind_err % (expected_kind, key.kind))
 
-        client = datastore.Client()  # TODO: Get instance from global environment ?
-        return client.get(key)  # Could return None
+        return Client().get(key)  # Could return None
     except (ValueError, AttributeError, IndexError, TypeError):
         raise InvalidIdException(_invalid_id_err % resource_id)
 

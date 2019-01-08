@@ -1,24 +1,24 @@
 import unittest
 
-from google.cloud import datastore
 from gcloud_core.datastore import get_resource_id_from_key
 from gcloud_core.datastore import get_key_from_resource_id
 from gcloud_core.datastore import get_entity_by_resource_id
 from gcloud_core.datastore import get_entity_key_by_keystr
 from gcloud_core.datastore import InvalidKeyException
 from gcloud_core.datastore import InvalidIdException
+from gcloud_core.datastore import Client
 
 
 class GetResourceIdFromKeyTests(unittest.TestCase):
     def test_keyname(self):
-        client = datastore.Client()
+        client = Client()
 
         key = client.key('UserEntity', 'does_not_exist')
         expected_id = 'VXNlckVudGl0eR5kb2VzX25vdF9leGlzdA'
         self.assertEquals(expected_id, get_resource_id_from_key(key))
 
     def test_id(self):
-        client = datastore.Client()
+        client = Client()
 
         key = client.key('UserEntity', 1)
         expected_id = 'VXNlckVudGl0eR4fMQ'
@@ -26,7 +26,7 @@ class GetResourceIdFromKeyTests(unittest.TestCase):
         self.assertEquals(expected_id, get_resource_id_from_key(key))
 
     def test_odd_params(self):
-        client = datastore.Client()
+        client = Client()
 
         # Single - this is a valid key prior to being persisted
         key = client.key('UserEntity')
@@ -90,7 +90,7 @@ class GetEntityKeyByKeystrTests(unittest.TestCase):
             keystr = 'ahZwb2xseXdvZy1kZXYtZGF0YXN0b3JlchALEgpVc2VyRW50aXR5GAEM'
             get_entity_key_by_keystr('OtherEntity', keystr)
         err = 'Expected keystr for kind OtherEntity but found kind UserEntity instead.'
-        self.assertEqual(err, ex.exception.message)
+        self.assertEqual(err, str(ex.exception))
 
 
 """
@@ -117,3 +117,8 @@ class GetEntityByResourceIdTests(unittest.TestCase):
         result = get_entity_by_resource_id('UserEntity', 'VXNlckVudGl0eR4fOTk5OQ')
         self.assertEquals('test', result['username'])
 """
+
+
+class DataStoreClientTests(unittest.TestCase):
+    def testSingleton(self):
+        self.assertEquals(Client().ds_client, Client().ds_client)
